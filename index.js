@@ -15,7 +15,8 @@ exports.handler = async (event, context, callback) => {
     // Object key may have spaces or unicode non-ASCII characters.
     const srcKey    = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, " "));
     const dstBucket = srcBucket;
-    const dstKey    = srcKey+"-converted.csv";
+    const dstKey    = srcKey.split(".")[0]+"-converted.csv";
+    console.log(dstKey);
     console.log("SRC event : bucket: "+srcBucket+" ,file: "+srcKey)
 
     // Infer the type from the file suffix.
@@ -34,9 +35,20 @@ exports.handler = async (event, context, callback) => {
         console.log(error);
         return;
     }
-    const xlsxBody = xlsx.read(s3doc.Body);
+    const workbook = xlsx.read(s3doc.Body);
     var outputFilename = "/tmp/out.csv";
-    xlsx.writeFile(xlsxBody, outputFilename, { bookType: "csv" });
+    var content = null;
+    // xlsx.writefile only takes first sheet for CSV conversion
+    workbook.SheetNames.forEach((n, idx) => {
+      console.log(n);
+      if(n === "Details"){
+        content = xlsx.write(workbook, { type: 'binary', bookType: 'csv', sheet: n});
+        console.log('Found Details !');
+      }
+    });
+    //var content = xlsx.write(xlsxBody, { type: 'binary', bookType: 'csv'});
+    fs.writeFileSync(outputFilename, content, { encoding: 'binary' });
+    //xlsx.writeFile(xlsxBody, outputFilename, { bookType: "csv" });
 
     // Upload the converted document to the destination bucket
     var buffer = fs.readFileSync(outputFilename);
